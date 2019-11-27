@@ -182,9 +182,16 @@
 
 
 
-
+<!-- filtring recources with profile   mvn clean package -Pprod -->
 	<build>
-		<plugins>
+		<resources>
+        	<resource>
+           		<directory>src/main/resources</directory>
+           		<filtering>true</filtering>
+        	</resource>
+    	</resources>
+		
+		<plugins>						
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
@@ -204,6 +211,39 @@
 			
 		</plugins>
 	</build>
+
+	<profiles>
+		<profile>
+        	<id>dev</id>
+        	<activation>
+				<activeByDefault>true</activeByDefault>
+        	</activation>
+        	<properties>
+				<spring.profiles.active>dev</spring.profiles.active>
+        	</properties>
+    	</profile>
+
+		<profile>
+       	 	<id>qa</id>
+       	 	<properties>
+            	<spring.profiles.active>qa</spring.profiles.active>
+        	</properties>
+    	</profile>
+
+		<profile>
+       	 	<id>container</id>
+       	 	<properties>
+            	<spring.profiles.active>container</spring.profiles.active>
+        	</properties>
+    	</profile>
+
+    	<profile>
+       	 	<id>prod</id>
+       	 	<properties>
+            	<spring.profiles.active>prod</spring.profiles.active>
+        	</properties>
+    	</profile>
+	</profiles>
 
 <!-- 	<profiles> -->
 <!-- 		<profile> -->

@@ -1,0 +1,98 @@
+ FROM java:8
+##FROM openjdk:8-jdk
+  LABEL "com.zaghir.project.api-avion"="Api Avion"
+  LABEL maintainer="zaghir.youssef@gmail.com"
+  LABEL version="1.0"
+  LABEL description="Image de l'api avion  \
+        basé sur spring cloud pour le back ,mysql comme serveur de base de donnnees."
+
+##--------------------------- install maven 
+ARG MAVEN_VERSION=3.6.2
+ARG USER_HOME_DIR="/root"
+ARG SHA=d941423d115cd021514bfd06c453658b1b3e39e6240969caf4315ab7119a77299713f14b620fb2571a264f8dff2473d8af3cb47b05acf0036fc2553199a5c1ee
+ARG BASE_URL=https://apache.osuosl.org/maven/maven-3/${MAVEN_VERSION}/binaries
+
+
+RUN mkdir -p /usr/share/maven /usr/share/maven/ref \
+  && curl -fsSL -o /tmp/apache-maven.tar.gz ${BASE_URL}/apache-maven-${MAVEN_VERSION}-bin.tar.gz \
+  && echo "${SHA}  /tmp/apache-maven.tar.gz" | sha512sum -c - \
+  && tar -xzf /tmp/apache-maven.tar.gz -C /usr/share/maven --strip-components=1 \
+  && rm -f /tmp/apache-maven.tar.gz \
+  && ln -s /usr/share/maven/bin/mvn /usr/bin/mvn
+
+##--------------------------- install git
+##RUN cp -p /etc/apt/sources.list{,.back}
+##RUN rm /etc/apt/sources.list
+
+
+
+RUN echo "deb [check-valid-until=no] http://cdn-fastly.deb.debian.org/debian jessie main" > /etc/apt/sources.list.d/jessie.list
+RUN echo "deb [check-valid-until=no] http://archive.debian.org/debian jessie-backports main" > /etc/apt/sources.list.d/jessie-backports.list
+RUN sed -i '/deb http:\/\/deb.debian.org\/debian jessie-updates main/d' /etc/apt/sources.list
+RUN echo 'Acquire::Check-Valid-Until no;' > /etc/apt/apt.conf.d/99no-check-valid-until
+RUN apt-get -o Acquire::Check-Valid-Until=false update
+
+
+
+RUN apt-get update && apt-get upgrade -y
+
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && apt-get install -y git curl
+ 
+
+##-------------------------- creer le dossier de travail et faire un clone de projet
+RUN mkdir /usr/depot_git \
+    && cd /usr/depot_git \
+    && git clone https://github.com/zaghir/eshopper-api-avion.git  \
+    && cd /usr/depot_git/eshopper-api-avion
+
+##-------------------------- Set working directory
+WORKDIR /usr/depot_git/eshopper-api-avion
+
+ENV MAVEN_HOME /usr/share/maven
+ENV MAVEN_CONFIG "$USER_HOME_DIR/.m2"
+
+ENV DATASOURCE_URL = jdbc:mysql://mysql-container:3306/eshopper?verifyServerCertificate=false&allowPublicKeyRetrieval=true&useSSL=false 
+ENV DATASOURCE_USERNAME =root
+ENV DATASOURCE_password =
+
+RUN mvn clean install
+
+## On a utilisé maven local pour creer le jar si on on passe par une copie depuis le dossier le dossier target d'eclipse 
+## ADD target/api-train-0.0.1-SNAPSHOT.jar api-train-0.0.1-SNAPSHOT.jar
+#  COPY target/api-train-0.0.1-SNAPSHOT.jar api-train-0.0.1-SNAPSHOT.jar
+
+##-------------------------- exposer l api sur le port 9100
+EXPOSE 9200:9200
+## CMD ["cd ","/usr/depot_git/eshopper-api-avion/target"]
+## ENTRYPOINT ["java","-jar","/usr/depot_git/eshopper-api-avion/target/api-avion-0.0.1-SNAPSHOT.jar","-Dspring.datasource.url=${DATASOURCE_URL}" ,"-Dspring.datasource.username=${DATASOURCE_USERNAME}}","-Dspring.datasource.password=${DATASOURCE_password}"]
+ENTRYPOINT ["java","-jar","/usr/depot_git/eshopper-api-avion/target/api-avion-0.0.1-SNAPSHOT.jar","-Dspring.profiles.active=container"]
+
+
+
+## pour builder  ==>  docker build . 
+## docker image build -t eshopper-api-avion .     . c'est le fichier Dockerfile qui se trouve dans le dossier courant
+
+## pour lancer un container mysql 
+## docker container run --detach --publish 3306:3306 --name mysqlZ -e  MYSQL_RANDOM_ROOT_PASSWORD=yes mysql
+## docker container run --detach --publish 3306:3306 --name mysqlZ -e  MYSQL_ROOT_PASSWORD=123 mysql
+## docker container run --detach --publish 3306:3306 --name mysqlZ -e  MYSQL_ALLOW_EMPTY_PASSWORD=yes mysql
+## docker exec -it mysqlZ bash
+## mysql -h localhost -u root -p
+## show databases;    use eshopper ; show tables 
+
+## api eshopper-avion 
+## docker container  run --detach --publish 9100:9100  --name api-avion eshopper-api-avion 
+## [INFO] Installing /usr/depot_git/eshopper-api-avion/target/api-avion-0.0.1-SNAPSHOT.jar to /root/.m2/repository/com/bd/eshopper/api-avion/0.0.1-SNAPSHOT/api-avion-0.0.1-SNAPSHOT.jar
+## [INFO] Installing /usr/depot_git/eshopper-api-avion/pom.xml to /root/.m2/repository/com/bd/eshopper/api-avion/0.0.1-SNAPSHOT/api-avion-0.0.1-SNAPSHOT.pom
+
+## creer un reseau   sur windows 10 ca ne marche pas car il n y a pas le driver bridge
+## docker network create --driver nat eshopper-network
+## docker container run --detach --publish 3306:3306 --name mysqlZ --network eshopper-network -e MYSQL_ALLOW_EMPTY_PASSWORD=yes -e MYSQL_DATABASE=eshopper mysql
+## docker container  run --detach --publish 9100:9100  --name api-avion --network eshopper-network eshopper-api-avion 
+
+## on connete les container avec les link 
+## docker container run --detach --publish 3306:3306 --name mysql-container -e MYSQL_ALLOW_EMPTY_PASSWORD=yes -e MYSQL_DATABASE=eshopper mysql
+## docker container  run --detach --publish 9100:9100 -e DATASOURCE_URL =jdbc:mysql://mysql-container:3306/eshopper?verifyServerCertificate=false&allowPublicKeyRetrieval=true&useSSL=false  -e DATASOURCE_USERNAME=root -e DATASOURCE_password= --name api-avion --link mysql-container  eshopper-api-avion
+## docker container  run --detach --publish 9100:9100 --name api-avion -t --link mysql-container:mysql  eshopper-api-avion
